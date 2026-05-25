@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Pomodoro 🍅 Xinh Xắn</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#ff6f91" />
+<meta name="description" content="Đồng hồ Pomodoro dễ thương kèm âm thanh tập trung." />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Pomodoro" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+
+<style>
+  :root {
+    --pink: #ff6f91;
+    --peach: #ffc3a0;
+    --mint: #6ee7b7;
+    --sky: #7dd3fc;
+    --ink: #4a4458;
+    --card: rgba(255, 255, 255, 0.78);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Segoe UI', 'Quicksand', system-ui, sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    background: linear-gradient(135deg, #ffe9f0 0%, #fff5e6 50%, #e6fbff 100%);
+    transition: background 0.6s ease;
+    overflow: hidden;
+    padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom);
+  }
+
+  body.mode-work  { background: linear-gradient(135deg, #ffe2ec 0%, #fff0f5 100%); }
+  body.mode-short { background: linear-gradient(135deg, #e3fcef 0%, #f0fff9 100%); }
+  body.mode-long  { background: linear-gradient(135deg, #e3f4ff 0%, #f0faff 100%); }
+
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.45;
+    z-index: 0;
+    animation: float 14s ease-in-out infinite;
+  }
+  .blob.b1 { width: 320px; height: 320px; background: var(--pink); top: -80px; left: -60px; }
+  .blob.b2 { width: 280px; height: 280px; background: var(--sky); bottom: -90px; right: -50px; animation-delay: -5s; }
+  .blob.b3 { width: 220px; height: 220px; background: var(--mint); bottom: 40px; left: 10%; animation-delay: -9s; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-30px) scale(1.08); }
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    width: 380px;
+    max-width: 94vw;
+    padding: 28px 26px 24px;
+    background: var(--card);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-radius: 32px;
+    box-shadow: 0 20px 60px rgba(255, 111, 145, 0.25), inset 0 0 0 1px rgba(255,255,255,0.6);
+    text-align: center;
+    max-height: 96dvh;
+    overflow-y: auto;
+  }
+
+  .title { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.5px; }
+  .title .tomato { display: inline-block; animation: wobble 3s ease-in-out infinite; }
+  @keyframes wobble { 0%,100%{transform:rotate(-6deg);} 50%{transform:rotate(6deg);} }
+
+  .subtitle { font-size: 0.8rem; opacity: 0.6; margin-top: 4px; }
+
+  .install-btn {
+    margin-top: 12px; border: none; cursor: pointer; padding: 9px 18px;
+    border-radius: 14px; font-weight: 700; font-size: 0.82rem; color: #fff;
+    background: linear-gradient(135deg, var(--pink), #ff9a8b);
+    box-shadow: 0 6px 16px rgba(255,111,145,0.35);
+  }
+  .install-btn[hidden] { display: none; }
+
+  .modes {
+    display: flex; gap: 8px; margin: 20px 0 8px;
+    background: rgba(255,255,255,0.5); padding: 6px; border-radius: 18px;
+  }
+  .modes button {
+    flex: 1; border: none; padding: 10px 4px; border-radius: 13px;
+    font-size: 0.82rem; font-weight: 600; color: var(--ink);
+    background: transparent; cursor: pointer; transition: all 0.25s ease;
+  }
+  .modes button.active { background: #fff; box-shadow: 0 6px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+
+  .timer-wrap { position: relative; width: 240px; height: 240px; margin: 16px auto 6px; }
+  svg { transform: rotate(-90deg); }
+  .ring-bg { stroke: rgba(255,255,255,0.7); }
+  .ring-fg { stroke: var(--pink); stroke-linecap: round; transition: stroke-dashoffset 0.4s linear, stroke 0.5s ease; }
+  body.mode-short .ring-fg { stroke: #34d399; }
+  body.mode-long  .ring-fg { stroke: #38bdf8; }
+
+  .time { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .time .num { font-size: 3.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .time .label { font-size: 0.8rem; opacity: 0.55; margin-top: 2px; }
+
+  .controls { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+  .controls button { border: none; cursor: pointer; font-weight: 700; border-radius: 18px; transition: transform 0.15s ease; }
+  .controls button:active { transform: scale(0.94); }
+  .btn-main {
+    flex: 1; padding: 16px; font-size: 1rem; color: #fff;
+    background: linear-gradient(135deg, var(--pink), #ff9a8b);
+    box-shadow: 0 10px 24px rgba(255,111,145,0.4);
+  }
+  body.mode-short .btn-main { background: linear-gradient(135deg,#34d399,#6ee7b7); box-shadow:0 10px 24px rgba(52,211,153,0.4); }
+  body.mode-long  .btn-main { background: linear-gradient(135deg,#38bdf8,#7dd3fc); box-shadow:0 10px 24px rgba(56,189,248,0.4); }
+  .btn-ghost { padding: 16px 20px; font-size: 1.1rem; background: rgba(255,255,255,0.7); color: var(--ink); }
+
+  .footer { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; }
+  .count { opacity: 0.7; }
+  .count b { font-size: 1rem; }
+  .settings-toggle { border: none; background: rgba(255,255,255,0.6); cursor: pointer; padding: 7px 12px; border-radius: 12px; font-size: 0.95rem; }
+
+  .settings { overflow: hidden; max-height: 0; transition: max-height 0.35s ease, margin 0.35s ease; }
+  .settings.open { max-height: 220px; margin-top: 14px; }
+  .settings-grid { background: rgba(255,255,255,0.55); border-radius: 18px; padding: 14px; }
+  .srow { display: flex; align-items: center; justify-content: space-between; padding: 7px 2px; font-size: 0.85rem; }
+  .stepper { display: flex; align-items: center; gap: 8px; }
+  .stepper button { width: 28px; height: 28px; border: none; border-radius: 9px; background: #fff; cursor: pointer; font-weight: 700; font-size: 1rem; box-shadow: 0 3px 8px rgba(0,0,0,0.08); }
+  .stepper span { width: 30px; text-align: center; font-weight: 700; }
+
+  .sounds { margin-top: 20px; }
+  .sounds-title { font-size: 0.8rem; opacity: 0.6; margin-bottom: 8px; text-align: left; }
+  .sound-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sound-btns button {
+    border: none; cursor: pointer; padding: 9px 4px; border-radius: 14px;
+    background: rgba(255,255,255,0.55); color: var(--ink);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 1.15rem; transition: all 0.2s ease;
+  }
+  .sound-btns button span { font-size: 0.68rem; font-weight: 600; opacity: 0.8; }
+  .sound-btns button.active { background: #fff; box-shadow: 0 6px 16px rgba(0,0,0,0.1); transform: translateY(-1px); }
+  .sound-btns button.playing { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 6px 16px rgba(255,111,145,0.25);} 50%{box-shadow:0 6px 22px rgba(255,111,145,0.55);} }
+
+  .vol-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .vol-row input[type=range] {
+    flex: 1; -webkit-appearance: none; appearance: none; height: 6px;
+    border-radius: 6px; background: rgba(255,255,255,0.85); cursor: pointer; outline: none;
+  }
+  .vol-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--pink); box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .vol-row input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: none; border-radius: 50%; background: var(--pink); }
+</style>
+</head>
+<body class="mode-work">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+
+  <div class="card">
+    <div class="title"><span class="tomato">🍅</span> Pomodoro</div>
+    <div class="subtitle">Tập trung từng chút một nhé ~</div>
+    <button id="installBtn" class="install-btn" hidden>⬇️ Cài app vào máy</button>
+
+    <div class="modes">
+      <button data-mode="work" class="active">Tập trung</button>
+      <button data-mode="short">Nghỉ ngắn</button>
+      <button data-mode="long">Nghỉ dài</button>
+    </div>
+
+    <div class="timer-wrap">
+      <svg width="240" height="240">
+        <circle class="ring-bg" cx="120" cy="120" r="108" fill="none" stroke-width="14" />
+        <circle class="ring-fg" cx="120" cy="120" r="108" fill="none" stroke-width="14"
+                stroke-dasharray="678.58" stroke-dashoffset="0" />
+      </svg>
+      <div class="time">
+        <div class="num" id="display">25:00</div>
+        <div class="label" id="phase">Sẵn sàng chưa?</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-main" id="startBtn">Bắt đầu</button>
+      <button class="btn-ghost" id="resetBtn" title="Đặt lại">↻</button>
+    </div>
+
+    <div class="sounds">
+      <div class="sounds-title">🎵 Âm thanh tập trung</div>
+      <div class="sound-btns">
+        <button data-sound="off" class="active">🔇<span>Tắt</span></button>
+        <button data-sound="rain">🌧️<span>Mưa</span></button>
+        <button data-sound="ocean">🌊<span>Sóng biển</span></button>
+        <button data-sound="brown">🟤<span>Nhiễu nâu</span></button>
+        <button data-sound="white">⚪<span>Nhiễu trắng</span></button>
+        <button data-sound="alpha">🎐<span>Sóng α</span></button>
+      </div>
+      <div class="vol-row">
+        <span>🔈</span>
+        <input type="range" id="volume" min="0" max="100" value="50" aria-label="Âm lượng" />
+        <span>🔊</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="count">🌸 Hoàn thành: <b id="sessions">0</b></div>
+      <button class="settings-toggle" id="settingsToggle">⚙️</button>
+    </div>
+
+    <div class="settings" id="settings">
+      <div class="settings-grid">
+        <div class="srow">
+          <span>Tập trung (phút)</span>
+          <div class="stepper" data-key="work"><button data-d="-1">−</button><span>25</span><button data-d="1">+</button></div>
+        </div>
+        <div class="srow">
+          <span>Nghỉ ngắn (phút)</span>
+          <div class="stepper" data-key="short"><button data-d="-1">−</button><span>5</span><button data-d="1">+</button></div>
+        </div>
+        <div class="srow">
+          <span>Nghỉ dài (phút)</span>
+          <div class="stepper" data-key="long"><button data-d="-1">−</button><span>15</span><button data-d="1">+</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const durations = { work: 25, short: 5, long: 15 };
+  const labels = { work: 'Đang tập trung 💪', short: 'Nghỉ một chút ☕', long: 'Nghỉ dài, thư giãn 🌿' };
+  const CIRC = 2 * Math.PI * 108;
+
+  let mode = 'work', remaining = durations.work * 60, total = remaining;
+  let timer = null, running = false, sessions = 0;
+
+  const $ = (id) => document.getElementById(id);
+  const display = $('display'), phase = $('phase'), ring = document.querySelector('.ring-fg');
+  const startBtn = $('startBtn');
+  ring.style.strokeDasharray = CIRC;
+
+  const fmt = (s) => {
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  };
+
+  function render() {
+    display.textContent = fmt(remaining);
+    const frac = total > 0 ? remaining / total : 0;
+    ring.style.strokeDashoffset = CIRC * (1 - frac);
+    document.title = `${fmt(remaining)} • Pomodoro`;
+  }
+
+  function setMode(m, autostart = false) {
+    mode = m;
+    document.body.className = 'mode-' + m;
+    document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+    remaining = durations[m] * 60; total = remaining;
+    phase.textContent = running ? labels[m] : 'Sẵn sàng chưa?';
+    render();
+    if (autostart) start();
+  }
+
+  function tick() {
+    remaining--;
+    render();
+    if (remaining <= 0) {
+      clearInterval(timer); running = false; chime();
+      if (mode === 'work') {
+        sessions++; $('sessions').textContent = sessions;
+        setMode(sessions % 4 === 0 ? 'long' : 'short', true);
+      } else {
+        setMode('work', true);
+      }
+    }
+  }
+
+  function start() {
+    if (running) return;
+    getCtx();                 // resume audio on user gesture
+    running = true;
+    startBtn.textContent = 'Tạm dừng';
+    phase.textContent = labels[mode];
+    timer = setInterval(tick, 1000);
+  }
+  function pause() {
+    running = false;
+    startBtn.textContent = 'Tiếp tục';
+    phase.textContent = 'Tạm nghỉ ⏸';
+    clearInterval(timer);
+  }
+  function reset() {
+    clearInterval(timer); running = false;
+    startBtn.textContent = 'Bắt đầu';
+    setMode(mode);
+  }
+
+  function chime() {
+    try {
+      const ctx = getCtx();
+      [880, 1175, 1568].forEach((f, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        o.connect(g); g.connect(ctx.destination);
+        const t = ctx.currentTime + i * 0.18;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.3, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        o.start(t); o.stop(t + 0.42);
+      });
+    } catch (e) {}
+  }
+
+  startBtn.onclick = () => running ? pause() : start();
+  $('resetBtn').onclick = reset;
+  document.querySelectorAll('.modes button').forEach(b => b.onclick = () => { reset(); setMode(b.dataset.mode); });
+  $('settingsToggle').onclick = () => $('settings').classList.toggle('open');
+
+  document.querySelectorAll('.stepper').forEach(st => {
+    const key = st.dataset.key, span = st.querySelector('span');
+    st.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+      const d = parseInt(btn.dataset.d, 10);
+      durations[key] = Math.min(90, Math.max(1, durations[key] + d));
+      span.textContent = durations[key];
+      if (mode === key && !running) setMode(mode);
+    });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); running ? pause() : start(); }
+    if (e.key.toLowerCase() === 'r') reset();
+  });
+
+  /* ============ Âm thanh tập trung (Web Audio, không cần file) ============ */
+  let audioCtx = null, masterGain = null, ambGain = null, ambNodes = [], currentSound = 'off';
+  let volLevel = 0.5;
+  const volSlider = $('volume');
+
+  function getCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = volLevel * 0.9;
+      masterGain.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function setVolume(v) {                 // v in 0..1
+    volLevel = Math.max(0, Math.min(1, v));
+    if (masterGain) masterGain.gain.setTargetAtTime(volLevel * 0.9, audioCtx.currentTime, 0.04);
+  }
+
+  function makeNoise(ctx, type) {
+    const len = ctx.sampleRate * 4;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    if (type === 'brown') {
+      let last = 0;
+      for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
+    } else {
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return buf;
+  }
+  function noiseSource(ctx, type) {
+    const s = ctx.createBufferSource();
+    s.buffer = makeNoise(ctx, type);
+    s.loop = true; s.start();
+    return s;
+  }
+
+  // Stop the current ambient sound: fade out, then disconnect everything.
+  function stopAmbient() {
+    const ctx = audioCtx, nodes = ambNodes, g = ambGain;
+    ambNodes = []; ambGain = null;
+    if (g && ctx) {
+      const t = ctx.currentTime;
+      try {
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t);
+        g.gain.linearRampToValueAtTime(0.0001, t + 0.12);
+      } catch (e) {}
+    }
+    setTimeout(() => {
+      nodes.forEach(n => { try { n.stop && n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} });
+    }, 170);
+  }
+
+  function startAmbient(type) {
+    const ctx = getCtx();
+    stopAmbient();
+    if (type === 'off') return;
+
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    g.connect(masterGain);
+    ambGain = g; ambNodes.push(g);
+
+    let target = 0.5;
+    if (type === 'white' || type === 'brown') {
+      target = type === 'brown' ? 0.9 : 0.45;
+      const s = noiseSource(ctx, type); s.connect(g); ambNodes.push(s);
+    } else if (type === 'rain') {
+      target = 0.7;
+      const s = noiseSource(ctx, 'white');
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+      s.connect(hp); hp.connect(lp); lp.connect(g);
+      ambNodes.push(s, hp, lp);
+    } else if (type === 'ocean') {
+      target = 0.35;
+      const s = noiseSource(ctx, 'brown');
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 550;
+      s.connect(lp); lp.connect(g);
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.13;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.27;
+      lfo.connect(lfoGain); lfoGain.connect(g.gain); lfo.start();
+      ambNodes.push(s, lp, lfo, lfoGain);
+    } else if (type === 'alpha') {
+      target = 0.16;
+      [[200, -1], [210, 1]].forEach(([f, pan]) => {
+        const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+        const p = ctx.createStereoPanner(); p.pan.value = pan;
+        o.connect(p); p.connect(g); o.start();
+        ambNodes.push(o, p);
+      });
+    }
+    const t = ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(target, t + 0.25);
+  }
+
+  document.querySelectorAll('.sound-btns button').forEach(b => b.onclick = () => {
+    currentSound = b.dataset.sound;
+    document.querySelectorAll('.sound-btns button').forEach(x => {
+      x.classList.toggle('active', x === b);
+      x.classList.toggle('playing', x === b && currentSound !== 'off');
+    });
+    startAmbient(currentSound);
+  });
+
+  volSlider.addEventListener('input', () => setVolume(volSlider.value / 100));
+  volLevel = volSlider.value / 100;
+
+  render();
+
+  /* ============ PWA: service worker + nút cài đặt ============ */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+  let deferredPrompt = null;
+  const installBtn = $('installBtn');
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; installBtn.hidden = false; });
+  installBtn.onclick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null; installBtn.hidden = true;
+  };
+  window.addEventListener('appinstalled', () => { installBtn.hidden = true; });
+</script>
+</body>
+</html>
