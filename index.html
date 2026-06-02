@@ -348,19 +348,37 @@
 
   /* ============ Âm thanh tập trung (Web Audio, không cần file) ============ */
   let audioCtx = null, masterGain = null, ambGain = null, ambNodes = [], currentSound = 'off';
-  let volLevel = 0.5;
+  let volLevel = 0.5, iosUnlocked = false;
   const volSlider = $('volume');
 
   function getCtx() {
     if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      masterGain = audioCtx.createGain();
-      masterGain.gain.value = volLevel * 0.9;
-      masterGain.connect(audioCtx.destination);
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = volLevel * 0.9;
+        masterGain.connect(audioCtx.destination);
+      } catch (e) { return null; }
     }
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioCtx) return null;
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    // iOS Safari needs a silent buffer played inside the first user gesture
+    // to unlock Web Audio. After this once, all subsequent sounds work.
+    if (!iosUnlocked) {
+      try {
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf; src.connect(audioCtx.destination);
+        src.start(0);
+        iosUnlocked = true;
+      } catch (e) {}
+    }
     return audioCtx;
   }
+  // Safety net: any tap/click anywhere also tries to unlock audio (iOS).
+  ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(ev =>
+    window.addEventListener(ev, () => getCtx(), { capture: true, passive: true })
+  );
 
   function setVolume(v) {                 // v in 0..1
     volLevel = Math.max(0, Math.min(1, v));
