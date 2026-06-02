@@ -165,6 +165,24 @@
     border-radius: 50%; background: var(--pink); box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   }
   .vol-row input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: none; border-radius: 50%; background: var(--pink); }
+
+  .sounds-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .test-btn {
+    border: none; cursor: pointer; padding: 6px 12px; border-radius: 12px;
+    font-size: 0.72rem; font-weight: 700; color: var(--ink);
+    background: rgba(255,255,255,0.7); box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+    transition: transform 0.12s ease;
+  }
+  .test-btn:active { transform: scale(0.95); }
+  .test-btn.flash { background: linear-gradient(135deg, var(--pink), #ff9a8b); color:#fff; }
+
+  .ios-hint {
+    margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+    font-size: 0.74rem; line-height: 1.4;
+    background: rgba(255,205,140,0.45); color: #5a4030;
+    border: 1px solid rgba(255,180,90,0.5);
+  }
+  .ios-hint b { font-weight: 800; }
 </style>
 </head>
 <body class="mode-work">
@@ -201,7 +219,10 @@
     </div>
 
     <div class="sounds">
-      <div class="sounds-title">🎵 Âm thanh tập trung</div>
+      <div class="sounds-header">
+        <div class="sounds-title">🎵 Âm thanh tập trung</div>
+        <button id="testBtn" class="test-btn" type="button">🔔 Test</button>
+      </div>
       <div class="sound-btns">
         <button data-sound="off" class="active">🔇<span>Tắt</span></button>
         <button data-sound="rain">🌧️<span>Mưa</span></button>
@@ -215,7 +236,12 @@
         <input type="range" id="volume" min="0" max="100" value="50" aria-label="Âm lượng" />
         <span>🔊</span>
       </div>
+      <div class="ios-hint" id="iosHint" hidden>
+        📱 <b>iPhone không nghe?</b> 1) Gạt chuông bên hông sang vị trí có chuông • 2) Mở link bằng <b>Safari</b> (không phải Zalo/Messenger) — bấm <b>⋯ → Mở trong Safari</b> • 3) Bấm nút <b>🔔 Test</b> ở trên.
+      </div>
     </div>
+
+    <audio id="silentLoop" src="silent.wav" preload="auto" loop playsinline></audio>
 
     <div class="footer">
       <div class="count">🌸 Hoàn thành: <b id="sessions">0</b></div>
@@ -327,6 +353,17 @@
 
   startBtn.onclick = () => running ? pause() : start();
   $('resetBtn').onclick = reset;
+
+  // Test sound button — plays a chime and confirms audio is working.
+  let testTimer;
+  $('testBtn').onclick = () => {
+    unlockAudio();
+    chime();
+    const t = $('testBtn');
+    t.classList.add('flash'); t.textContent = '🔔 Phát rồi! Nghe được chứ?';
+    clearTimeout(testTimer);
+    testTimer = setTimeout(() => { t.classList.remove('flash'); t.textContent = '🔔 Test'; }, 2400);
+  };
   document.querySelectorAll('.modes button').forEach(b => b.onclick = () => { reset(); setMode(b.dataset.mode); });
   $('settingsToggle').onclick = () => $('settings').classList.toggle('open');
 
@@ -348,8 +385,13 @@
 
   /* ============ Âm thanh tập trung (Web Audio, không cần file) ============ */
   let audioCtx = null, masterGain = null, ambGain = null, ambNodes = [], currentSound = 'off';
-  let volLevel = 0.5, iosUnlocked = false;
+  let volLevel = 0.5, audioUnlocked = false;
   const volSlider = $('volume');
+  const silentLoop = $('silentLoop');
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) $('iosHint').hidden = false;
 
   function getCtx() {
     if (!audioCtx) {
@@ -361,23 +403,41 @@
       } catch (e) { return null; }
     }
     if (!audioCtx) return null;
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    // iOS Safari needs a silent buffer played inside the first user gesture
-    // to unlock Web Audio. After this once, all subsequent sounds work.
-    if (!iosUnlocked) {
-      try {
-        const buf = audioCtx.createBuffer(1, 1, 22050);
-        const src = audioCtx.createBufferSource();
-        src.buffer = buf; src.connect(audioCtx.destination);
-        src.start(0);
-        iosUnlocked = true;
-      } catch (e) {}
-    }
+    try { if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
     return audioCtx;
   }
-  // Safety net: any tap/click anywhere also tries to unlock audio (iOS).
-  ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(ev =>
-    window.addEventListener(ev, () => getCtx(), { capture: true, passive: true })
+
+  // Aggressive unlock — call this from inside ANY user gesture handler.
+  //  (1) silent BufferSource start  — classic iOS unlock
+  //  (2) brief oscillator at gain 0 — some iOS versions need this too
+  //  (3) play a real <audio> silent loop — moves iOS audio session to
+  //      "playback" category so Web Audio plays even with the silent
+  //      ringer switch ON.
+  function unlockAudio() {
+    const ctx = getCtx(); if (!ctx) return;
+    if (audioUnlocked) return;
+    try {
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const s = ctx.createBufferSource();
+      s.buffer = buf; s.connect(ctx.destination); s.start(0);
+    } catch (e) {}
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      g.gain.value = 0; o.connect(g); g.connect(ctx.destination);
+      o.start(0); o.stop(ctx.currentTime + 0.005);
+    } catch (e) {}
+    try {
+      if (silentLoop) {
+        silentLoop.muted = false; silentLoop.volume = 0.0001;
+        const p = silentLoop.play();
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch (e) {}
+    audioUnlocked = true;
+  }
+  // Safety net: any gesture tries to unlock audio.
+  ['pointerdown','touchstart','mousedown','click','keydown'].forEach(ev =>
+    window.addEventListener(ev, unlockAudio, { capture: true, passive: true })
   );
 
   function setVolume(v) {                 // v in 0..1

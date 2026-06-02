@@ -1,5 +1,5 @@
 /* Pomodoro PWA service worker — offline app shell */
-const CACHE = 'pomodoro-v2';
+const CACHE = 'pomodoro-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -8,7 +8,8 @@ const ASSETS = [
   './icon-512.png',
   './icon-maskable-512.png',
   './apple-touch-icon.png',
-  './favicon-32.png'
+  './favicon-32.png',
+  './silent.wav'
 ];
 
 self.addEventListener('install', (e) => {
